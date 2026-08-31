@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서식 있는 텍스트 복사하기</title>
+    <style>
+        textarea {
+            font-family: monospace;
+            font-size: 13px;
+            width: 500px;
+            height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>서식 있는 텍스트 복사하기</h1>
+    <p>밑 소스코드 편집기에 표시할 텍스트를 입력하세요</p>
+    <button onclick="runEditor()">소스코드 편집기 실행</button><br>
+    <textarea id="altText" placeholder="여기에 표시할 텍스트를 입력하세요..."></textarea><br>
+    <button onclick="pasteRTF()">서식 있는 텍스트를 붙여넣어 소스 코드로 변환</button>
+    <p id="message"></p>
+    <script>
+        async function runCodeEditor(defaultValue = '') {
+  const codeWindow = window.open('', 'codeWindow', 'width=1000, height=500');
+  codeWindow.document.write(String.raw`
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>코드 내용 작성 양식</title>
+  <style>
+    textarea {
+      font-family: 'Courier New', monospace, 'HYSinMyeongJo', 'Times New Roman', serif;
+      width: 350px;
+      height: 250px;
+    }
+    body, input[type="button"] {
+      font-family: 'HYSinMyeongJo', 'Times New Roman', serif;
+    }
+    input[type="button"].indent-button {
+      background-color: blue;
+      border-color: #8080ff #000080 #000080 #8080ff;
+      color: white;
+    }
+    input[type="button"].outdent-button {
+      background-color: red;
+      border-color: #ff8080 #008000 #008000 #ff8080;
+      color: white;
+    }
+    input[type="submit"] {
+      background-color: lime;
+      border-color: #80ff80 #008000 #008000 #80ff80;
+      color: black;
+    }
+  </style>
+</head>
+<body>
+  <h1>코드 내용 작성 양식<sub>by 김성현</sub></h1>
+  <form id="codeInputForm" name="codeInputForm" action="javascript:submitForm()">
+    <fieldset>
+      <legend>코드 내용 작성란</legend>
+      <textarea id="codeArea" name="codeArea" placeholder="여기에 코드 입력"></textarea><br>
+      <textarea id="tabArea" name="tabArea" placeholder="여기에 들여쓸 코드 붙여넣기"></textarea><br>
+      <input type="button" class="indent-button" value="들여쓰기..." onclick="indentArea()">
+      <input type="button" class="outdent-button" value="내려쓰기..." onclick="outdentArea()"><br>
+      <input type="submit" value="코드 제출...">
+    </fieldset>
+  </form>
+  <script>
+    const codeArea = document.getElementById("codeArea");
+    const tabArea = document.getElementById("tabArea");
+    let eventSource, eventOrigin, messaged = false;
+    window.addEventListener('message', function(event) {
+      if (!messaged && event.origin === window.location.origin) {
+        messaged = true;
+        eventSource = event.source;
+        eventOrigin = event.origin;
+        codeArea.value = event.data.defaultValue;
+      }
+    });
+    function indentArea() {
+      tabArea.value = tabArea.value.split("\n").map(item => /^\s*$/.test(item) ? "" : "  " + item).join("\n");
+    }
+    function outdentArea() {
+      tabArea.value = tabArea.value.split("\n").map(item => /^\s*$/.test(item) ? "" : item.replace(/^\s{0,2}/g, "")).join("\n");
+    }
+    function submitForm() {
+      if (!eventSource || !eventOrigin) {
+        alert('활성 양식은 팝업 양식이 아닙니다');
+        return;
+      }
+      eventSource.postMessage({ userCodeInput: codeArea.value }, eventOrigin);
+      window.close();
+    }
+  </scr`+String.raw`ipt>
+</body>
+</html>
+`);
+  codeWindow.postMessage({ defaultValue }, window.location.origin);
+  codeWindow.onload = function() {
+    codeWindow.postMessage({ defaultValue }, window.location.origin);
+  };
+  return await new Promise(function(resolve) {
+    recievedValue = null;
+    const messageListener = function(event) {
+      recievedValue = event.data?.userCodeInput;
+      if (recievedValue !== null && recievedValue !== undefined) {
+        window.removeEventListener('message', messageListener);
+        window.clearInterval(interval);
+        resolve(recievedValue);
+      }
+    };
+    window.addEventListener('message', messageListener);
+    const interval = window.setInterval(async function() {
+      if (codeWindow.closed) {
+        await new Promise(function(resolve) {
+          window.setTimeout(resolve, 50);
+        });
+        if (recievedValue === null || recievedValue === undefined) {
+          window.removeEventListener('message', messageListener);
+          window.clearInterval(interval);
+          resolve(null);
+        }
+      }
+    });
+  });
+}
+    </script>
+    <script>
+        const ta = document.getElementById("code-editor");
+        const altText = document.getElementById('altText');
+        const m = document.getElementById("message");
+
+        let initialValue = '';
+
+        async function copyHTML(str, str2) {
+            const blob = new Blob([str], {type: "text/html"});
+            const blob2 = new Blob([str2], {type: "text/plain"});
+            const cItem = new ClipboardItem({
+                "text/html": blob,
+                "text/plain": blob2,
+            });
+            await navigator.clipboard.write([cItem]);
+            await new Promise((resolve, reject) => resolve(true));
+        }
+
+        async function copyRTF(text) {
+            try {
+                await copyHTML(text, altText.value);
+                m.style.color = "black";
+                m.innerText = "소스 코드를 서식 있는 텍스트로 변환하여 복사했습니다. 클릭하여 이 메시지를 삭제하세요.";
+            } catch(error) {}
+        }
+
+        async function pasteRTF() {
+            const contentsArray = await navigator.clipboard.read();
+            const contents = await contentsArray[0].getType("text/html");
+            const textResult = await contents.text();
+            initialValue = textResult;
+            m.style.color = "black";
+            m.innerText = "서식 있는 텍스트를 붙여넣어 소스 코드로 변환했습니다. 클릭하여 이 메시지를 삭제하세요.";
+        }
+
+        async function runEditor() {
+            const code = await runCodeEditor(initialValue);
+            m.style.color = "black";
+            m.innerText = "이 문서를 집중시키세요.";
+            await new Promise(resolve => {
+                window.setTimeout(resolve, 1000);
+            });
+            m.innerText = "";
+            if (code !== null) {
+                await copyRTF(code);
+            }
+        }
+
+        m.addEventListener("click", () => {
+            m.style.color = "black";
+            m.innerText = "";
+        });
+    </script>
+</body>
+</html>
