@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG+MathML 입력기</title>
+    <style>
+        textarea {
+            width: 350px;
+            height: 250px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .hidden {
+            display: none;
+        }
+        .complete {
+            background-color: lime;
+        }
+        .error {
+            background-color: red;
+            color: white;
+        }
+        math {
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>SVG+MathML Input Tools</h1>
+    <p>Enter MathML Without the math tag and the main inferred mrow tag.</p>
+    <textarea id="mathmlInput"></textarea><br>
+    <button id="convertToSVGButton">Convert MathML to SVG</button><br>
+    <button id="copyImageButton">Download image</button><br>
+    <button id="copySVGButton">Download SVG image</button>
+    <p>Original MathML:</p>
+    <math xmlns="http://www.w3.org/1998/Math/MathML" displaystyle="true">
+        <mrow id="mathmlCheck"></mrow>
+    </math>
+    <div style="height: 1rem;"></div>
+    <p>Converted SVG:</p>
+    <img alt="Equation" id="imageResult" class="hidden">
+    <script>
+        function toBase64(text) {
+            const unsignedArray = new TextEncoder().encode(text);
+            const binary = Array.from(unsignedArray).map(item => String.fromCharCode(item)).join('');
+            return btoa(binary);
+        }
+
+        let svgString;
+
+        const mathmlInput = document.getElementById('mathmlInput');
+        const convertToSVGButton = document.getElementById('convertToSVGButton');
+        const copyImageButton = document.getElementById('copyImageButton');
+        const copySVGButton = document.getElementById('copySVGButton');
+
+        const mathmlCheck = document.getElementById('mathmlCheck');
+        const imageResult = document.getElementById('imageResult');
+
+        async function copyImage() {
+            const buttonClassList = copyImageButton.classList;
+
+            try {
+                const pngBlob = await new Promise((resolve, reject) => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = imageResult.width + 5;
+                    canvas.height = imageResult.height + 5;
+                    const context = canvas.getContext('2d');
+                    context.fillStyle = 'white';
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                    context.drawImage(imageResult, 0, 0);
+
+                    canvas.toBlob((blob) => {
+                        canvas.remove();
+                        if (blob) {
+                            resolve(blob);
+                        } else {
+                            reject(new Error('PNG Blob conversion failed'));
+                        }
+                    });
+                });
+
+                const url = URL.createObjectURL(pngBlob);
+                const anchor = document.createElement('a');
+                anchor.href = url;
+                anchor.download = 'equation.png';
+                anchor.click();
+                anchor.remove();
+                URL.revokeObjectURL(url);
+
+                buttonClassList.add('complete');
+                window.setTimeout(() => {
+                    buttonClassList.remove('complete');
+                }, 2000);
+            } catch (error) {
+                console.error(error);
+
+                buttonClassList.add('error');
+                window.setTimeout(() => {
+                    buttonClassList.remove('error');
+                }, 2000);
+            }
+        }
+
+        async function copySVG() {
+            const buttonClassList = copySVGButton.classList;
+
+            try {
+                const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+
+                const url = URL.createObjectURL(svgBlob);
+                const anchor = document.createElement('a');
+                anchor.href = url;
+                anchor.download = 'equation.svg';
+                anchor.click();
+                anchor.remove();
+                URL.revokeObjectURL(url);
+
+                buttonClassList.add('complete');
+                window.setTimeout(() => {
+                    buttonClassList.remove('complete');
+                }, 2000);
+            } catch (error) {
+                console.error(error);
+
+                buttonClassList.add('error');
+                window.setTimeout(() => {
+                    buttonClassList.remove('error');
+                }, 2000);
+            }
+        }
+
+        function convertToSVG() {
+            const buttonClassList = convertToSVGButton.classList;
+
+            try {
+                mathmlCheck.innerHTML = mathmlInput.value;
+
+                const mathmlCheckStyles = window.getComputedStyle(mathmlCheck);
+                let { width, height } = mathmlCheckStyles;
+
+                width = width.replace('px', '');
+                height = height.replace('px', '');
+                
+                const objectProps = `width="${width}" height="${height}"`;
+
+                svgString = `
+                    <svg ${objectProps} viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+                        <style>
+                            math {
+                                font-size: 1.5rem;
+                            }
+                        </style>
+                        <foreignObject x="0" y="0" ${objectProps}>
+                            <math xmlns="http://www.w3.org/1998/Math/MathML" displaystyle="true" xmlns:h="http://www.w3.org/1999/xhtml">
+                                ${mathmlCheck.outerHTML}
+                            </math>
+                        </foreignObject>
+                    </svg>
+                `;
+
+                imageResult.width = width;
+                imageResult.height = height;
+                imageResult.src = 'data:image/svg+xml;base64,' + toBase64(svgString);
+
+                imageResult.classList.remove('hidden');
+                
+                buttonClassList.add('complete');
+                window.setTimeout(() => {
+                    buttonClassList.remove('complete');
+                }, 2000);
+            } catch (error) {
+                console.error(error);
+
+                buttonClassList.add('error');
+                window.setTimeout(() => {
+                    buttonClassList.remove('error');
+                }, 2000);
+            }
+        }
+
+        convertToSVGButton.addEventListener('click', convertToSVG);
+        copyImageButton.addEventListener('click', copyImage);
+        copySVGButton.addEventListener('click', copySVG);
+    </script>
+</body>
+</html>
